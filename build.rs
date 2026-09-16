@@ -265,6 +265,18 @@ fn main() {
         config.define("GGML_METAL", "OFF");
     }
 
+    // ggml-backend-reg.cpp uses std::filesystem::path / u8path which require macOS 10.15+.
+    // Without an explicit deployment target clang defaults to a pre-10.15 SDK floor and
+    // rejects every std::filesystem symbol. Propagate the env-var if already set by the
+    // caller (e.g. tauri / xcode-build), otherwise pin to 10.15 for all Apple targets.
+    if target.contains("apple") {
+        let floor = env::var("MACOSX_DEPLOYMENT_TARGET").unwrap_or_else(|_| "10.15".to_string());
+        println!("cargo:rerun-if-env-changed=MACOSX_DEPLOYMENT_TARGET");
+        config.define("CMAKE_OSX_DEPLOYMENT_TARGET", &floor);
+        // Also propagate through the env so the cmake cc crate picks it up.
+        unsafe { env::set_var("MACOSX_DEPLOYMENT_TARGET", &floor); }
+    }
+
     if cfg!(debug_assertions) || cfg!(feature = "force-debug") {
         // debug builds are too slow to even remotely be usable,
         // so we build with optimizations even in debug mode
